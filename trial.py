@@ -1,25 +1,20 @@
+from pyspark.ml import PipelineModel
+from pyspark.sql import SQLContext
 from pyspark import SparkContext
-from pyspark.streaming import StreamingContext
-# from pyspark.sql.functions import desc
+from pyspark.sql.functions import col
 
-sc = SparkContext("local[2]", "Tweet Streaming App")
+model = PipelineModel.load("logreg.model")
 
-
-ssc = StreamingContext(sc, 10)
+sc =SparkContext()
 sqlContext = SQLContext(sc)
-ssc.checkpoint( "file:/home/ubuntu/tweets/checkpoint/")
+data = sqlContext.read.format('com.databricks.spark.csv').options(header='true', inferschema='true').load('/home/ubuntu/dirwithcsv/t.csv')
 
-socket_stream = ssc.socketTextStream("172.31.35.41", 5555) # Internal ip of  the tweepy streamer
+data = data.select([column for column in data.columns])
+data.show(5)
 
-lines = socket_stream.window(20)
+prediction = model.transform(test)
+prediction.select("text","sentiment","probability","label","prediction")\
+	.orderBy("probability", ascending = False)\
+	.show(n = 10, truncate = 30)
 
-lines.count().map(lambda x:'Tweets in this batch: %s' % x).pprint()
-# If we want to filter hashtags only
-# .filter( lambda word: word.lower().startswith("#") )
-words = lines.flatMap( lambda twit: twit.split(" ") )
-pairs = words.map( lambda word: ( word.lower(), 1 ) )
-wordCounts = pairs.reduceByKey( lambda a, b: a + b ) #.transform(lambda rdd:rdd.sortBy(lambda x:-x[1]))
-wordCounts.pprint()
 
-ssc.start()
-ssc.awaitTermination()
